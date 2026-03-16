@@ -1,10 +1,5 @@
-"""
-Async SQLite database layer using aiosqlite.
-"""
-
 import aiosqlite
 import logging
-from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -26,7 +21,6 @@ class Database:
                     is_banned   INTEGER DEFAULT 0,
                     created_at  TEXT    DEFAULT (datetime('now'))
                 );
-
                 CREATE TABLE IF NOT EXISTS orders (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id         INTEGER NOT NULL,
@@ -41,27 +35,19 @@ class Database:
                     created_at      TEXT    DEFAULT (datetime('now')),
                     updated_at      TEXT    DEFAULT (datetime('now'))
                 );
-
                 CREATE TABLE IF NOT EXISTS payments (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id         INTEGER NOT NULL,
                     amount          REAL    NOT NULL,
-                    method          TEXT    NOT NULL,  -- 'crypto' | 'manual'
+                    method          TEXT    NOT NULL,
                     status          TEXT    DEFAULT 'pending',
                     tx_id           TEXT,
                     note            TEXT,
                     created_at      TEXT    DEFAULT (datetime('now'))
                 );
-
-                CREATE TABLE IF NOT EXISTS settings (
-                    key   TEXT PRIMARY KEY,
-                    value TEXT
-                );
             """)
             await db.commit()
-        logger.info("Database initialised at %s", self.path)
-
-    # ── Users ──────────────────────────────────────────────────────────────────
+        logger.info("DB אותחל: %s", self.path)
 
     async def get_or_create_user(self, user_id: int, username: str, full_name: str) -> Dict:
         async with aiosqlite.connect(self.path) as db:
@@ -76,8 +62,7 @@ class Database:
             )
             await db.commit()
             async with db.execute("SELECT * FROM users WHERE user_id=?", (user_id,)) as cur:
-                row = await cur.fetchone()
-                return dict(row)
+                return dict(await cur.fetchone())
 
     async def get_user(self, user_id: int) -> Optional[Dict]:
         async with aiosqlite.connect(self.path) as db:
@@ -92,10 +77,7 @@ class Database:
 
     async def update_balance(self, user_id: int, delta: float) -> float:
         async with aiosqlite.connect(self.path) as db:
-            await db.execute(
-                "UPDATE users SET balance = balance + ? WHERE user_id = ?",
-                (delta, user_id)
-            )
+            await db.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (delta, user_id))
             await db.commit()
             async with db.execute("SELECT balance FROM users WHERE user_id=?", (user_id,)) as cur:
                 row = await cur.fetchone()
@@ -117,15 +99,10 @@ class Database:
             async with db.execute("SELECT * FROM users ORDER BY created_at DESC") as cur:
                 return [dict(r) for r in await cur.fetchall()]
 
-    # ── Orders ─────────────────────────────────────────────────────────────────
-
-    async def create_order(self, user_id: int, activation_id: str, phone_number: str,
-                           service: str, country: int, base_price: float, charged_price: float) -> int:
+    async def create_order(self, user_id, activation_id, phone_number, service, country, base_price, charged_price) -> int:
         async with aiosqlite.connect(self.path) as db:
             cur = await db.execute(
-                """INSERT INTO orders
-                   (user_id, activation_id, phone_number, service, country, base_price, charged_price)
-                   VALUES (?,?,?,?,?,?,?)""",
+                "INSERT INTO orders (user_id,activation_id,phone_number,service,country,base_price,charged_price) VALUES (?,?,?,?,?,?,?)",
                 (user_id, activation_id, phone_number, service, country, base_price, charged_price)
             )
             await db.commit()
@@ -138,46 +115,31 @@ class Database:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
-    async def get_order_by_activation(self, activation_id: str) -> Optional[Dict]:
-        async with aiosqlite.connect(self.path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM orders WHERE activation_id=?", (activation_id,)) as cur:
-                row = await cur.fetchone()
-                return dict(row) if row else None
-
     async def update_order(self, order_id: int, **kwargs):
         fields = ", ".join(f"{k}=?" for k in kwargs)
         values = list(kwargs.values()) + [order_id]
         async with aiosqlite.connect(self.path) as db:
-            await db.execute(
-                f"UPDATE orders SET {fields}, updated_at=datetime('now') WHERE id=?", values
-            )
+            await db.execute(f"UPDATE orders SET {fields}, updated_at=datetime('now') WHERE id=?", values)
             await db.commit()
 
     async def user_orders(self, user_id: int, limit: int = 10) -> List[Dict]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
-                (user_id, limit)
+                "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?", (user_id, limit)
             ) as cur:
                 return [dict(r) for r in await cur.fetchall()]
 
     async def all_orders(self, limit: int = 50) -> List[Dict]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM orders ORDER BY created_at DESC LIMIT ?", (limit,)
-            ) as cur:
+            async with db.execute("SELECT * FROM orders ORDER BY created_at DESC LIMIT ?", (limit,)) as cur:
                 return [dict(r) for r in await cur.fetchall()]
 
-    # ── Payments ───────────────────────────────────────────────────────────────
-
-    async def create_payment(self, user_id: int, amount: float, method: str,
-                              tx_id: str = None, note: str = None) -> int:
+    async def create_payment(self, user_id: int, amount: float, method: str, tx_id: str = None, note: str = None) -> int:
         async with aiosqlite.connect(self.path) as db:
             cur = await db.execute(
-                "INSERT INTO payments (user_id, amount, method, tx_id, note) VALUES (?,?,?,?,?)",
+                "INSERT INTO payments (user_id,amount,method,tx_id,note) VALUES (?,?,?,?,?)",
                 (user_id, amount, method, tx_id, note)
             )
             await db.commit()
@@ -185,27 +147,21 @@ class Database:
 
     async def confirm_payment(self, payment_id: int):
         async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM payments WHERE id=?", (payment_id,)) as cur:
                 row = await cur.fetchone()
             if row:
-                await db.execute(
-                    "UPDATE payments SET status='confirmed' WHERE id=?", (payment_id,)
-                )
-                await db.execute(
-                    "UPDATE users SET balance=balance+? WHERE user_id=?",
-                    (row[2], row[1])
-                )
+                row = dict(row)
+                await db.execute("UPDATE payments SET status='confirmed' WHERE id=?", (payment_id,))
+                await db.execute("UPDATE users SET balance=balance+? WHERE user_id=?", (row["amount"], row["user_id"]))
                 await db.commit()
+            return row if row else {}
 
     async def pending_payments(self) -> List[Dict]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM payments WHERE status='pending' ORDER BY created_at DESC"
-            ) as cur:
+            async with db.execute("SELECT * FROM payments WHERE status='pending' ORDER BY created_at DESC") as cur:
                 return [dict(r) for r in await cur.fetchall()]
-
-    # ── Stats ──────────────────────────────────────────────────────────────────
 
     async def stats(self) -> Dict[str, Any]:
         async with aiosqlite.connect(self.path) as db:
@@ -213,7 +169,6 @@ class Database:
                 async with db.execute(q) as c:
                     row = await c.fetchone()
                     return row[0] if row else 0
-
             return {
                 "total_users":    await scalar("SELECT COUNT(*) FROM users"),
                 "total_orders":   await scalar("SELECT COUNT(*) FROM orders"),

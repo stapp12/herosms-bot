@@ -1,42 +1,33 @@
-"""
-Inline keyboard builders with emoji for the HeroSMS reseller bot.
-"""
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from typing import List, Dict
 
 
-# ── Main menu ──────────────────────────────────────────────────────────────────
-
 def main_menu_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📱 Buy Number",       callback_data="buy_number"),
-        InlineKeyboardButton(text="🕐 My Orders",        callback_data="my_orders"),
+        InlineKeyboardButton(text="📱 רכישת מספר",    callback_data="buy_number"),
+        InlineKeyboardButton(text="🕐 ההזמנות שלי",   callback_data="my_orders"),
     )
     kb.row(
-        InlineKeyboardButton(text="💰 My Balance",       callback_data="my_balance"),
-        InlineKeyboardButton(text="➕ Top Up",           callback_data="topup"),
+        InlineKeyboardButton(text="💰 היתרה שלי",     callback_data="my_balance"),
+        InlineKeyboardButton(text="➕ טעינת יתרה",    callback_data="topup"),
     )
     kb.row(
-        InlineKeyboardButton(text="ℹ️ Help",             callback_data="help"),
+        InlineKeyboardButton(text="ℹ️ עזרה",          callback_data="help"),
     )
     return kb.as_markup()
 
-
-# ── Services list ──────────────────────────────────────────────────────────────
 
 SERVICE_EMOJIS = {
     "tg": "✈️", "wa": "💬", "go": "🔵", "fb": "📘", "vk": "🔷",
     "ok": "🟠", "vi": "💜", "ub": "🚗", "am": "📦", "tt": "🎵",
     "ig": "📸", "tw": "🐦", "li": "💼", "yt": "▶️", "ds": "🎮",
 }
-DEFAULT_SERVICE_EMOJI = "📲"
+DEFAULT_EMOJI = "📲"
 
 
 def services_kb(services: Dict[str, str], page: int = 0, page_size: int = 8) -> InlineKeyboardMarkup:
-    """Paginated services keyboard."""
     items = sorted(services.items(), key=lambda x: x[1])
     start = page * page_size
     end = start + page_size
@@ -44,23 +35,21 @@ def services_kb(services: Dict[str, str], page: int = 0, page_size: int = 8) -> 
 
     kb = InlineKeyboardBuilder()
     for code, name in page_items:
-        emoji = SERVICE_EMOJIS.get(code, DEFAULT_SERVICE_EMOJI)
+        emoji = SERVICE_EMOJIS.get(code, DEFAULT_EMOJI)
         kb.button(text=f"{emoji} {name}", callback_data=f"svc:{code}")
     kb.adjust(2)
 
-    nav_row = []
+    nav = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton(text="⬅️ Prev", callback_data=f"svc_page:{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️ הקודם", callback_data=f"svc_page:{page-1}"))
     if end < len(items):
-        nav_row.append(InlineKeyboardButton(text="Next ➡️", callback_data=f"svc_page:{page+1}"))
-    if nav_row:
-        kb.row(*nav_row)
+        nav.append(InlineKeyboardButton(text="הבא ➡️", callback_data=f"svc_page:{page+1}"))
+    if nav:
+        kb.row(*nav)
 
-    kb.row(InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"))
+    kb.row(InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"))
     return kb.as_markup()
 
-
-# ── Countries list ─────────────────────────────────────────────────────────────
 
 COUNTRY_FLAGS = {
     0: "🇷🇺", 1: "🇺🇦", 2: "🇰🇿", 3: "🇨🇳", 4: "🇵🇭", 5: "🇲🇲",
@@ -78,59 +67,55 @@ def countries_kb(countries: List[Dict], service: str, page: int = 0, page_size: 
 
     kb = InlineKeyboardBuilder()
     for c in page_items:
-        cid = c.get("id", 0)
+        cid = int(c.get("id", 0))
         name = c.get("eng") or c.get("rus") or str(cid)
         flag = COUNTRY_FLAGS.get(cid, "🌐")
         kb.button(text=f"{flag} {name}", callback_data=f"country:{service}:{cid}")
     kb.adjust(2)
 
-    nav_row = []
+    nav = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton(text="⬅️ Prev", callback_data=f"ctry_page:{service}:{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️ הקודם", callback_data=f"ctry_page:{service}:{page-1}"))
     if end < len(visible):
-        nav_row.append(InlineKeyboardButton(text="Next ➡️", callback_data=f"ctry_page:{service}:{page+1}"))
-    if nav_row:
-        kb.row(*nav_row)
+        nav.append(InlineKeyboardButton(text="הבא ➡️", callback_data=f"ctry_page:{service}:{page+1}"))
+    if nav:
+        kb.row(*nav)
 
     kb.row(
-        InlineKeyboardButton(text="⬅️ Back", callback_data="buy_number"),
-        InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"),
+        InlineKeyboardButton(text="⬅️ חזרה", callback_data="buy_number"),
+        InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"),
     )
     return kb.as_markup()
 
 
-# ── Order management ───────────────────────────────────────────────────────────
-
 def order_kb(order_id: int, activation_id: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🔄 Check SMS", callback_data=f"check_sms:{order_id}"),
-        InlineKeyboardButton(text="🔁 New Code",  callback_data=f"new_code:{order_id}"),
+        InlineKeyboardButton(text="🔄 בדוק SMS",     callback_data=f"check_sms:{order_id}"),
+        InlineKeyboardButton(text="🔁 קוד חדש",      callback_data=f"new_code:{order_id}"),
     )
     kb.row(
-        InlineKeyboardButton(text="❌ Cancel",    callback_data=f"cancel_order:{order_id}"),
-        InlineKeyboardButton(text="✅ Complete",  callback_data=f"complete_order:{order_id}"),
+        InlineKeyboardButton(text="❌ ביטול",        callback_data=f"cancel_order:{order_id}"),
+        InlineKeyboardButton(text="✅ סיום",         callback_data=f"complete_order:{order_id}"),
     )
-    kb.row(InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"))
+    kb.row(InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"))
     return kb.as_markup()
 
 
 def order_complete_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📱 Buy Another", callback_data="buy_number"),
-        InlineKeyboardButton(text="🏠 Main Menu",   callback_data="main_menu"),
+        InlineKeyboardButton(text="📱 רכישה נוספת",  callback_data="buy_number"),
+        InlineKeyboardButton(text="🏠 תפריט ראשי",   callback_data="main_menu"),
     )
     return kb.as_markup()
 
 
-# ── Top-up ─────────────────────────────────────────────────────────────────────
-
 def topup_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🪙 Pay with Crypto", callback_data="topup_crypto"))
-    kb.row(InlineKeyboardButton(text="💳 I already transferred (manual)", callback_data="topup_manual"))
-    kb.row(InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"))
+    kb.row(InlineKeyboardButton(text="🪙 תשלום קריפטו", callback_data="topup_crypto"))
+    kb.row(InlineKeyboardButton(text="💳 העברה ידנית (אדמין יאשר)", callback_data="topup_manual"))
+    kb.row(InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"))
     return kb.as_markup()
 
 
@@ -140,29 +125,27 @@ def topup_amount_kb() -> InlineKeyboardMarkup:
     for amt in amounts:
         kb.button(text=f"💵 ${amt}", callback_data=f"topup_amt:{amt}")
     kb.adjust(3)
-    kb.row(InlineKeyboardButton(text="⬅️ Back", callback_data="topup"))
+    kb.row(InlineKeyboardButton(text="⬅️ חזרה", callback_data="topup"))
     return kb.as_markup()
 
-
-# ── Admin panel ────────────────────────────────────────────────────────────────
 
 def admin_menu_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📊 Stats",          callback_data="adm_stats"),
-        InlineKeyboardButton(text="👥 Users",           callback_data="adm_users"),
+        InlineKeyboardButton(text="📊 סטטיסטיקות",      callback_data="adm_stats"),
+        InlineKeyboardButton(text="👥 משתמשים",          callback_data="adm_users"),
     )
     kb.row(
-        InlineKeyboardButton(text="💰 Pending Top-ups", callback_data="adm_pending_topups"),
-        InlineKeyboardButton(text="📋 Recent Orders",   callback_data="adm_orders"),
+        InlineKeyboardButton(text="💰 טעינות ממתינות",   callback_data="adm_pending_topups"),
+        InlineKeyboardButton(text="📋 הזמנות אחרונות",   callback_data="adm_orders"),
     )
     kb.row(
-        InlineKeyboardButton(text="💳 Add Balance",     callback_data="adm_add_balance"),
-        InlineKeyboardButton(text="🚫 Ban User",        callback_data="adm_ban"),
+        InlineKeyboardButton(text="💳 הוספת יתרה",       callback_data="adm_add_balance"),
+        InlineKeyboardButton(text="🚫 חסימת משתמש",      callback_data="adm_ban"),
     )
     kb.row(
-        InlineKeyboardButton(text="📣 Broadcast",       callback_data="adm_broadcast"),
-        InlineKeyboardButton(text="🔑 HeroSMS Balance", callback_data="adm_api_balance"),
+        InlineKeyboardButton(text="📣 שידור לכולם",      callback_data="adm_broadcast"),
+        InlineKeyboardButton(text="🔑 יתרת HeroSMS",     callback_data="adm_api_balance"),
     )
     return kb.as_markup()
 
@@ -170,13 +153,13 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
 def confirm_topup_kb(payment_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="✅ Confirm",  callback_data=f"adm_confirm_payment:{payment_id}"),
-        InlineKeyboardButton(text="❌ Reject",   callback_data=f"adm_reject_payment:{payment_id}"),
+        InlineKeyboardButton(text="✅ אשר",   callback_data=f"adm_confirm_payment:{payment_id}"),
+        InlineKeyboardButton(text="❌ דחה",   callback_data=f"adm_reject_payment:{payment_id}"),
     )
     return kb.as_markup()
 
 
 def back_to_admin_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="⬅️ Admin Panel", callback_data="admin_menu"))
+    kb.row(InlineKeyboardButton(text="⬅️ פאנל ניהול", callback_data="admin_menu"))
     return kb.as_markup()

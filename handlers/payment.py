@@ -1,9 +1,3 @@
-"""
-Payment handlers.
-- Crypto top-up via NOWPayments
-- Manual top-up (user sends note, admin confirms)
-"""
-
 import logging
 import aiohttp
 from aiogram import Router, F
@@ -23,15 +17,12 @@ router = Router()
 
 class TopUpState(StatesGroup):
     entering_manual_note = State()
-    entering_custom_amount = State()
 
-
-# ── Crypto top-up ──────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "topup_crypto")
 async def cb_topup_crypto(cb: CallbackQuery):
     await cb.message.edit_text(
-        "🪙 <b>Crypto Top-Up</b>\n\nSelect an amount:",
+        "🪙 <b>תשלום קריפטו</b>\n\nבחר סכום לטעינה:",
         parse_mode="HTML",
         reply_markup=topup_amount_kb()
     )
@@ -44,18 +35,17 @@ async def cb_topup_amount(cb: CallbackQuery, db: Database, config: Config):
     user_id = cb.from_user.id
 
     if not config.NOWPAYMENTS_API_KEY:
-        # Fallback if no NOWPayments key configured
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text="⬅️ Back", callback_data="topup"))
+        kb.row(InlineKeyboardButton(text="⬅️ חזרה", callback_data="topup"))
         await cb.message.edit_text(
-            "⚠️ Automatic crypto payments are not configured yet.\n\n"
-            "Please use the manual top-up option or contact support.",
+            "⚠️ תשלום קריפטו אוטומטי לא מוגדר עדיין.\n\n"
+            "אנא השתמש בהעברה ידנית.",
             reply_markup=kb.as_markup()
         )
         await cb.answer()
         return
 
-    await cb.message.edit_text("⏳ Creating payment invoice...")
+    await cb.message.edit_text("⏳ יוצר חשבונית תשלום...")
 
     payment_id = await db.create_payment(user_id, amount, "crypto")
 
@@ -70,57 +60,55 @@ async def cb_topup_amount(cb: CallbackQuery, db: Database, config: Config):
                 json={
                     "price_amount": amount,
                     "price_currency": "usd",
-                    "pay_currency": "usdt",   # default; user can change on NOWPayments page
+                    "pay_currency": "usdttrc20",
                     "order_id": str(payment_id),
-                    "order_description": f"Balance top-up for user {user_id}",
-                    "ipn_callback_url": "",   # Set your webhook URL here
+                    "order_description": f"טעינת יתרה משתמש {user_id}",
                 },
+                timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
                 data = await resp.json()
 
         pay_address = data.get("pay_address", "")
-        pay_amount = data.get("pay_amount", amount)
+        pay_amount  = data.get("pay_amount", amount)
         pay_currency = data.get("pay_currency", "USDT").upper()
-        payment_url = data.get("invoice_url") or ""
+        payment_url = data.get("invoice_url", "")
 
         kb = InlineKeyboardBuilder()
         if payment_url:
-            kb.row(InlineKeyboardButton(text="🔗 Open Payment Page", url=payment_url))
-        kb.row(InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"))
+            kb.row(InlineKeyboardButton(text="🔗 עמוד תשלום", url=payment_url))
+        kb.row(InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"))
 
         await cb.message.edit_text(
-            f"🪙 <b>Crypto Payment</b>\n\n"
-            f"Amount: <b>${amount:.2f}</b>\n"
-            f"Pay: <b>{pay_amount} {pay_currency}</b>\n"
-            f"Address:\n<code>{pay_address}</code>\n\n"
-            f"⚠️ Send exactly the amount shown.\n"
-            f"✅ Balance will be credited automatically after confirmation.",
+            f"🪙 <b>תשלום קריפטו</b>\n\n"
+            f"סכום: <b>${amount:.2f}</b>\n"
+            f"לתשלום: <b>{pay_amount} {pay_currency}</b>\n\n"
+            f"כתובת:\n<code>{pay_address}</code>\n\n"
+            f"⚠️ שלח בדיוק את הסכום הנ\"ל.\n"
+            f"✅ היתרה תתעדכן אוטומטית לאחר אישור.",
             parse_mode="HTML",
             reply_markup=kb.as_markup()
         )
     except Exception as e:
         logger.error("NOWPayments error: %s", e)
         kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text="⬅️ Back", callback_data="topup"))
+        kb.row(InlineKeyboardButton(text="⬅️ חזרה", callback_data="topup"))
         await cb.message.edit_text(
-            "❌ Payment creation failed. Please try again or use manual top-up.",
+            "❌ יצירת התשלום נכשלה. נסה שוב או השתמש בהעברה ידנית.",
             reply_markup=kb.as_markup()
         )
     await cb.answer()
 
 
-# ── Manual top-up ──────────────────────────────────────────────────────────────
-
 @router.callback_query(F.data == "topup_manual")
-async def cb_topup_manual(cb: CallbackQuery, state: FSMContext, config: Config):
+async def cb_topup_manual(cb: CallbackQuery, state: FSMContext):
     await state.set_state(TopUpState.entering_manual_note)
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="❌ Cancel", callback_data="topup"))
+    kb.row(InlineKeyboardButton(text="❌ ביטול", callback_data="topup"))
     await cb.message.edit_text(
-        "📨 <b>Manual Top-Up Request</b>\n\n"
-        "Please send your payment proof or transaction ID as a message.\n"
-        "An admin will review and confirm it manually.\n\n"
-        "Type your message now:",
+        "📨 <b>בקשת טעינה ידנית</b>\n\n"
+        "שלח הוכחת תשלום או מזהה עסקה כהודעה.\n"
+        "מנהל יאשר ויזכה את חשבונך.\n\n"
+        "✍️ הקלד הודעה עכשיו:",
         parse_mode="HTML",
         reply_markup=kb.as_markup()
     )
@@ -129,38 +117,35 @@ async def cb_topup_manual(cb: CallbackQuery, state: FSMContext, config: Config):
 
 @router.message(TopUpState.entering_manual_note)
 async def handle_manual_note(message: Message, state: FSMContext, db: Database, config: Config):
-    note = message.text or message.caption or "(no text)"
+    note = message.text or message.caption or "(ללא טקסט)"
     user_id = message.from_user.id
 
     payment_id = await db.create_payment(user_id, 0, "manual", note=note)
 
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu"))
+    kb.row(InlineKeyboardButton(text="🏠 תפריט ראשי", callback_data="main_menu"))
     await message.answer(
-        f"✅ <b>Request submitted!</b>\n\n"
-        f"Payment ID: <b>#{payment_id}</b>\n\n"
-        f"An admin will review your request and credit your balance shortly.",
+        f"✅ <b>הבקשה נשלחה!</b>\n\n"
+        f"מזהה תשלום: <b>#{payment_id}</b>\n\n"
+        f"מנהל יבדוק ויזכה את חשבונך בקרוב.",
         parse_mode="HTML",
         reply_markup=kb.as_markup()
     )
 
-    # Notify all admins
-    from aiogram import Bot
-    bot = message.bot
+    from keyboards import confirm_topup_kb
     for admin_id in config.ADMIN_IDS:
         try:
-            from keyboards import confirm_topup_kb
-            await bot.send_message(
+            await message.bot.send_message(
                 admin_id,
-                f"💳 <b>New Manual Top-Up Request</b>\n\n"
-                f"From: <b>{message.from_user.full_name}</b> (@{message.from_user.username or '—'})\n"
-                f"User ID: <code>{user_id}</code>\n"
-                f"Payment ID: <b>#{payment_id}</b>\n\n"
-                f"Note: {note}",
+                f"💳 <b>בקשת טעינה ידנית חדשה</b>\n\n"
+                f"משתמש: <b>{message.from_user.full_name}</b> (@{message.from_user.username or '—'})\n"
+                f"ID: <code>{user_id}</code>\n"
+                f"מזהה תשלום: <b>#{payment_id}</b>\n\n"
+                f"📝 {note}",
                 parse_mode="HTML",
                 reply_markup=confirm_topup_kb(payment_id)
             )
         except Exception as e:
-            logger.warning("Could not notify admin %s: %s", admin_id, e)
+            logger.warning("לא ניתן להודיע אדמין %s: %s", admin_id, e)
 
     await state.clear()
