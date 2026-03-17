@@ -28,7 +28,7 @@ DEFAULT_EMOJI = "📲"
 
 
 def services_kb(services: Dict[str, str], page: int = 0, page_size: int = 8) -> InlineKeyboardMarkup:
-    items = sorted(services.items(), key=lambda x: x[1])
+   items = sorted(services.items(), key=lambda x: str(x[1])) 
     start = page * page_size
     end = start + page_size
     page_items = items[start:end]
